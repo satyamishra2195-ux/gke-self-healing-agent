@@ -1,0 +1,54 @@
+name: On-call Agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      symptom:
+        description: 'What is broken? (e.g. "pods in demo namespace are not ready")'
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  respond:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Auth to GCP (keyless)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      - uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: self-healing-demo
+          location: asia-south1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Git identity for the agent
+        run: |
+          git config user.name "oncall-agent[bot]"
+          git config user.email "oncall-agent@users.noreply.github.com"
+
+      - name: Diagnose and open PR
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          claude -p "Incident reported: '${{ github.event.inputs.symptom }}'.
+          Investigate the demo namespace with read-only kubectl, find the root cause,
+          fix the relevant manifest under k8s/, commit on a branch named fix/agent-${{ github.run_id }},
+          push it, and open a PR to main with gh. Follow CLAUDE.md strictly." \
+            --allowedTools "Read,Grep,Glob,Edit,Bash(kubectl get:*),Bash(kubectl describe:*),Bash(kubectl logs:*),Bash(git:*),Bash(gh pr create:*)" \
+            --max-turns 30
