@@ -24,6 +24,10 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SA_EMAIL }}
 
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          install_components: gke-gcloud-auth-plugin
+
       - uses: google-github-actions/get-gke-credentials@v2
         with:
           cluster_name: self-healing-demo
@@ -51,4 +55,4 @@ jobs:
           fix the relevant manifest under k8s/, commit on a branch named fix/agent-${{ github.run_id }},
           push it, and open a PR to main with gh. Follow CLAUDE.md strictly." \
             --allowedTools "Read,Grep,Glob,Edit,Bash(kubectl get:*),Bash(kubectl describe:*),Bash(kubectl logs:*),Bash(git:*),Bash(gh pr create:*)" \
-            --max-turns 30
+            --max-turns 60
